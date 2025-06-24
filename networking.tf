@@ -6,127 +6,124 @@ data "aws_availability_zones" "available" {
   }
 }
 
-resource "aws_vpc" "rsschool-vpc" {
+resource "aws_vpc" "main-vpc" {
   cidr_block           = var.vpc_cidr
   enable_dns_support   = true
   enable_dns_hostnames = true
   tags = {
-    Name = "rsschool-vpc"
+    Name        = "main-vpc"
+    Environment = "dev"
+    Task        = "task-2"
   }
 }
 
 # Public subnets
-resource "aws_subnet" "public-subnet-1" {
+resource "aws_subnet" "public-subnet" {
+  count = length(var.public_subnet_cidrs)
   tags = {
-    Name = "public-rsschool-subnet-1"
+    Name        = "public-subnet-${count.index + 1}"
+    Environment = "dev"
+    Task        = "task-2"
   }
-  cidr_block        = var.public_subnet_1_cidr
-  vpc_id            = aws_vpc.rsschool-vpc.id
-  availability_zone = data.aws_availability_zones.available.names[0]
-}
-
-resource "aws_subnet" "public-subnet-2" {
-  tags = {
-    Name = "public-rsschool-subnet-2"
-  }
-  cidr_block        = var.public_subnet_2_cidr
-  vpc_id            = aws_vpc.rsschool-vpc.id
-  availability_zone = data.aws_availability_zones.available.names[1]
+  cidr_block        = var.public_subnet_cidrs[count.index]
+  vpc_id            = aws_vpc.main-vpc.id
+  availability_zone = data.aws_availability_zones.available.names[count.index]
 }
 
 # Private subnets
-resource "aws_subnet" "private-subnet-1" {
+resource "aws_subnet" "private-subnet" {
+  count             = length(var.private_subnet_cidrs)
+  cidr_block        = var.private_subnet_cidrs[count.index]
+  vpc_id            = aws_vpc.main-vpc.id
+  availability_zone = data.aws_availability_zones.available.names[count.index]
   tags = {
-    Name = "private-rsschool-subnet-1"
+    Name        = "private-subnet-${count.index + 1}"
+    Environment = "dev"
+    Task        = "task-2"
   }
-  cidr_block        = var.private_subnet_1_cidr
-  vpc_id            = aws_vpc.rsschool-vpc.id
-  availability_zone = data.aws_availability_zones.available.names[0]
-}
-
-resource "aws_subnet" "private-subnet-2" {
-  tags = {
-    Name = "private-rsschool-subnet-2"
-  }
-  cidr_block        = var.private_subnet_2_cidr
-  vpc_id            = aws_vpc.rsschool-vpc.id
-  availability_zone = data.aws_availability_zones.available.names[1]
 }
 
 # Internet Gateway for the public subnets
 # Connects the public subnet to the internet
 # And also exposes the public IP address to the internet
-resource "aws_internet_gateway" "rsschool-igw" {
+resource "aws_internet_gateway" "main-igw" {
   tags = {
-    Name = "rsschool-igw"
+    Name        = "igw"
+    Environment = "dev"
+    Task        = "task-2"
   }
-  vpc_id = aws_vpc.rsschool-vpc.id
+  vpc_id = aws_vpc.main-vpc.id
 }
 
 # NAT Gateway for the private subnets
 # Translates the private IP addresses to public IP addresses
 # And forwards the traffic to the Internet Gateway so private subnets can connect to the internet
 # That should also be used for the private subnets to access the public subnets
-resource "aws_eip" "nat_gateway" {
+resource "aws_eip" "eip-nat" {
   domain                    = "vpc"
   associate_with_private_ip = "10.0.0.5"
-  depends_on                = [aws_internet_gateway.rsschool-igw]
+  depends_on                = [aws_internet_gateway.main-igw]
+  tags = {
+    Name        = "eip-nat"
+    Environment = "dev"
+    Task        = "task-2"
+  }
 }
 
-resource "aws_nat_gateway" "rsschool-ngw" {
-  allocation_id = aws_eip.nat_gateway.id
-  subnet_id     = aws_subnet.public-subnet-1.id
+resource "aws_nat_gateway" "main-nat-gateway" {
+  allocation_id = aws_eip.eip-nat.id
+  subnet_id     = aws_subnet.public-subnet[0].id
 
   tags = {
-    Name = "rsschool-ngw"
+    Name        = "nat-gateway"
+    Environment = "dev"
+    Task        = "task-2"
   }
-  depends_on = [aws_eip.nat_gateway]
 }
 
 # Route tables for the subnets
 resource "aws_route_table" "public-route-table" {
-  vpc_id = aws_vpc.rsschool-vpc.id
+  vpc_id = aws_vpc.main-vpc.id
   tags = {
-    Name = "rsschool-public-route-table"
+    Name        = "public-route-table"
+    Environment = "dev"
+    Task        = "task-2"
   }
 }
 resource "aws_route_table" "private-route-table" {
-  vpc_id = aws_vpc.rsschool-vpc.id
+  vpc_id = aws_vpc.main-vpc.id
   tags = {
-    Name = "rsschool-private-route-table"
+    Name        = "private-route-table"
+    Environment = "dev"
+    Task        = "task-2"
   }
 }
 
 # Route the public subnets traffic through the Internet Gateway
 resource "aws_route" "public-internet-igw-route" {
   route_table_id         = aws_route_table.public-route-table.id
-  gateway_id             = aws_internet_gateway.rsschool-igw.id
+  gateway_id             = aws_internet_gateway.main-igw.id
   destination_cidr_block = "0.0.0.0/0"
 }
 
 # Route the private subnets traffic through the NAT Gateway
 resource "aws_route" "nat-ngw-route" {
   route_table_id         = aws_route_table.private-route-table.id
-  nat_gateway_id         = aws_nat_gateway.rsschool-ngw.id
+  nat_gateway_id         = aws_nat_gateway.main-nat-gateway.id
   destination_cidr_block = "0.0.0.0/0"
 }
 
 # Associate the newly created route tables to the subnets
-resource "aws_route_table_association" "public-route-1-association" {
+resource "aws_route_table_association" "public-route-association" {
+  count          = length(var.public_subnet_cidrs)
   route_table_id = aws_route_table.public-route-table.id
-  subnet_id      = aws_subnet.public-subnet-1.id
+  subnet_id      = aws_subnet.public-subnet[count.index].id
 }
-resource "aws_route_table_association" "public-route-2-association" {
-  route_table_id = aws_route_table.public-route-table.id
-  subnet_id      = aws_subnet.public-subnet-2.id
-}
-resource "aws_route_table_association" "private-route-1-association" {
+
+resource "aws_route_table_association" "private-route-association" {
+  count          = length(var.private_subnet_cidrs)
   route_table_id = aws_route_table.private-route-table.id
-  subnet_id      = aws_subnet.private-subnet-1.id
-}
-resource "aws_route_table_association" "private-route-2-association" {
-  route_table_id = aws_route_table.private-route-table.id
-  subnet_id      = aws_subnet.private-subnet-2.id
+  subnet_id      = aws_subnet.private-subnet[count.index].id
 }
 
 # Note: Subnets are already associated with their specific route tables above

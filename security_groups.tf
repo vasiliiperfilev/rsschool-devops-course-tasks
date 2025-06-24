@@ -2,9 +2,11 @@
 resource "aws_security_group" "bastion-host" {
   name        = "bastion-host-security-group"
   description = "Allows inbound access on port 22 and outbound access to the internet"
-  vpc_id      = aws_vpc.rsschool-vpc.id
+  vpc_id      = aws_vpc.main-vpc.id
   tags = {
-    Name = "bastion-host-sg"
+    Name        = "bastion-host-sg"
+    Environment = "dev"
+    Task        = "task-2"
   }
 }
 
@@ -27,10 +29,12 @@ resource "aws_vpc_security_group_egress_rule" "bastion_allow_all" {
 resource "aws_security_group" "public-subnet" {
   name        = "public-subnet-sg"
   description = "Allow traffic on port 443 and traffic from bastion host on port 22"
-  vpc_id      = aws_vpc.rsschool-vpc.id
+  vpc_id      = aws_vpc.main-vpc.id
 
   tags = {
-    Name = "public-subnet-sg"
+    Name        = "public-subnet-sg"
+    Environment = "dev"
+    Task        = "task-2"
   }
 }
 
@@ -60,10 +64,12 @@ resource "aws_vpc_security_group_egress_rule" "public_allow_all" {
 resource "aws_security_group" "private-subnet" {
   name        = "private-subnet-sg"
   description = "Allow traffic from bastion host on port 22 and outbound traffic"
-  vpc_id      = aws_vpc.rsschool-vpc.id
+  vpc_id      = aws_vpc.main-vpc.id
 
   tags = {
-    Name = "private-subnet-sg"
+    Name        = "private-subnet-sg"
+    Environment = "dev"
+    Task        = "task-2"
   }
 }
 
