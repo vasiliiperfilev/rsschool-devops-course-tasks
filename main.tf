@@ -14,3 +14,7 @@ terraform {
     }
   }
 }
+
+locals {
+  bastion_cidr = var.public_subnet_cidrs[0]
+}

@@ -22,6 +22,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.1
 
       - name: Terraform Format
         run: terraform fmt -check
@@ -37,6 +39,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.1
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -50,7 +54,7 @@ jobs:
         working-directory: .
 
       - name: Terraform Plan
-        run: terraform plan -var="account_id=${{ vars.AWS_ACCOUNT_ID }}" -var="repo_owner=${{ github.repository_owner }}" -var="repo_name=${{ github.event.repository.name }}"
+        run: terraform plan -var="account_id=${{ vars.AWS_ACCOUNT_ID }}" -var="repo_owner=${{ github.repository_owner }}" -var="repo_name=${{ github.event.repository.name }}" -var="region=${{ vars.AWS_REGION }}"
         working-directory: .
 
   terraform-apply:
@@ -64,6 +68,8 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12.1
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -77,5 +83,5 @@ jobs:
         working-directory: .
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -var="account_id=${{ vars.AWS_ACCOUNT_ID }}" -var="repo_owner=${{ github.repository_owner }}" -var="repo_name=${{ github.event.repository.name }}"
+        run: terraform apply -auto-approve -var="account_id=${{ vars.AWS_ACCOUNT_ID }}" -var="repo_owner=${{ github.repository_owner }}" -var="repo_name=${{ github.event.repository.name }}" -var="region=${{ vars.AWS_REGION }}"
         working-directory: . 
