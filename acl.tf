@@ -33,24 +33,13 @@ resource "aws_network_acl_rule" "public_outbound_all" {
   to_port        = 0
 }
 
-# Allow all inbound traffic from internet
+# Allow all inbound traffic from internet and all VPC subnets
 resource "aws_network_acl_rule" "public_inbound_all" {
   network_acl_id = aws_network_acl.public_acl.id
   rule_number    = 1002
   protocol       = "-1"
   rule_action    = "allow"
   cidr_block     = "0.0.0.0/0"
-  from_port      = 0
-  to_port        = 0
-}
-
-# Allow inbound traffic from all VPC subnets (inter-subnet communication)
-resource "aws_network_acl_rule" "public_inbound_vpc" {
-  network_acl_id = aws_network_acl.public_acl.id
-  rule_number    = 1003
-  protocol       = "-1"
-  rule_action    = "allow"
-  cidr_block     = var.vpc_cidr
   from_port      = 0
   to_port        = 0
 }
@@ -89,17 +78,6 @@ resource "aws_network_acl_rule" "private_inbound_ephemeral" {
   cidr_block     = "0.0.0.0/0"
   from_port      = 1024
   to_port        = 65535
-}
-
-# Allow inbound SSH (port 22) from the bastion CIDR
-resource "aws_network_acl_rule" "private_inbound_ssh" {
-  network_acl_id = aws_network_acl.private_acl.id
-  rule_number    = 1004
-  protocol       = "tcp"
-  rule_action    = "allow"
-  cidr_block     = local.bastion_cidr
-  from_port      = 22
-  to_port        = 22
 }
 
 # Associate ACLs with subnets
