@@ -11,9 +11,7 @@ resource "aws_vpc" "main-vpc" {
   enable_dns_support   = true
   enable_dns_hostnames = true
   tags = {
-    Name        = "main-vpc"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "main-vpc"
   }
 }
 
@@ -21,9 +19,7 @@ resource "aws_vpc" "main-vpc" {
 resource "aws_subnet" "public-subnet" {
   count = length(var.public_subnet_cidrs)
   tags = {
-    Name        = "public-subnet-${count.index + 1}"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "public-subnet-${count.index + 1}"
   }
   cidr_block        = var.public_subnet_cidrs[count.index]
   vpc_id            = aws_vpc.main-vpc.id
@@ -37,9 +33,7 @@ resource "aws_subnet" "private-subnet" {
   vpc_id            = aws_vpc.main-vpc.id
   availability_zone = data.aws_availability_zones.available.names[count.index]
   tags = {
-    Name        = "private-subnet-${count.index + 1}"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "private-subnet-${count.index + 1}"
   }
 }
 
@@ -48,9 +42,7 @@ resource "aws_subnet" "private-subnet" {
 # And also exposes the public IP address to the internet
 resource "aws_internet_gateway" "main-igw" {
   tags = {
-    Name        = "igw"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "igw"
   }
   vpc_id = aws_vpc.main-vpc.id
 }
@@ -64,9 +56,7 @@ resource "aws_eip" "eip-nat" {
   associate_with_private_ip = "10.0.0.5"
   depends_on                = [aws_internet_gateway.main-igw]
   tags = {
-    Name        = "eip-nat"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "eip-nat"
   }
 }
 
@@ -75,9 +65,7 @@ resource "aws_nat_gateway" "main-nat-gateway" {
   subnet_id     = aws_subnet.public-subnet[0].id
 
   tags = {
-    Name        = "nat-gateway"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "nat-gateway"
   }
 }
 
@@ -85,17 +73,13 @@ resource "aws_nat_gateway" "main-nat-gateway" {
 resource "aws_route_table" "public-route-table" {
   vpc_id = aws_vpc.main-vpc.id
   tags = {
-    Name        = "public-route-table"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "public-route-table"
   }
 }
 resource "aws_route_table" "private-route-table" {
   vpc_id = aws_vpc.main-vpc.id
   tags = {
-    Name        = "private-route-table"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "private-route-table"
   }
 }
 

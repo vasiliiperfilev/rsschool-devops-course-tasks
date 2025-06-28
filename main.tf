@@ -15,6 +15,16 @@ terraform {
   }
 }
 
+provider "aws" {
+  region = var.region
+  default_tags {
+    tags = {
+      Environment = "dev"
+      Task        = "task-3"
+    }
+  }
+}
+
 locals {
   bastion_cidr = var.public_subnet_cidrs[0]
 }
