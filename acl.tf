@@ -3,9 +3,7 @@ resource "aws_network_acl" "public_acl" {
   vpc_id = aws_vpc.main-vpc.id
 
   tags = {
-    Name        = "public-acl"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "public-acl"
   }
 }
 
@@ -14,9 +12,7 @@ resource "aws_network_acl" "private_acl" {
   vpc_id = aws_vpc.main-vpc.id
 
   tags = {
-    Name        = "private-acl"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "private-acl"
   }
 }
 
