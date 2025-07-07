@@ -14,6 +14,50 @@ data "aws_ami" "ubuntu" {
   }
 }
 
+# IAM role for EC2 instances
+resource "aws_iam_role" "describe_ec2_role" {
+  name = "DescribeEC2Role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+# IAM policy for EC2 describe permissions
+resource "aws_iam_role_policy" "describe_ec2_policy" {
+  name = "DescribeEC2Policy"
+  role = aws_iam_role.describe_ec2_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeInstances",
+          "ec2:DescribeTags"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# IAM instance profile
+resource "aws_iam_instance_profile" "describe_ec2_profile" {
+  name = "DescribeEC2Profile"
+  role = aws_iam_role.describe_ec2_role.name
+}
+
 resource "aws_instance" "bastion" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
@@ -21,24 +65,14 @@ resource "aws_instance" "bastion" {
   associate_public_ip_address = true
   security_groups             = [aws_security_group.bastion-host.id]
   subnet_id                   = aws_subnet.public-subnet[0].id
-  tags = {
-    Name        = "Bastion"
-    Environment = "dev"
-    Task        = "task-2"
+  iam_instance_profile        = aws_iam_instance_profile.describe_ec2_profile.name
+  # Require IMDSv2 for metadata service for security
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
   }
-}
-
-resource "aws_instance" "public_subnet_2_instance" {
-  ami                         = data.aws_ami.ubuntu.id
-  instance_type               = var.instance_type
-  key_name                    = var.ssh_bastion_pubkey_name
-  associate_public_ip_address = true
-  security_groups             = [aws_security_group.public-subnet.id]
-  subnet_id                   = aws_subnet.public-subnet[1].id
   tags = {
-    Name        = "Public Subnet 2 Instance"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "Bastion"
   }
 }
 
@@ -46,13 +80,16 @@ resource "aws_instance" "private_subnet_1_instance" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
   key_name                    = var.ssh_bastion_pubkey_name
-  associate_public_ip_address = true
-  security_groups             = [aws_security_group.private-subnet.id]
+  associate_public_ip_address = false
+  vpc_security_group_ids      = [aws_security_group.private-subnet.id]
   subnet_id                   = aws_subnet.private-subnet[0].id
+  iam_instance_profile        = aws_iam_instance_profile.describe_ec2_profile.name
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
+  }
   tags = {
-    Name        = "Private Subnet 1 Instance"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "K3S-server"
   }
 }
 
@@ -60,12 +97,15 @@ resource "aws_instance" "private_subnet_2_instance" {
   ami                         = data.aws_ami.ubuntu.id
   instance_type               = var.instance_type
   key_name                    = var.ssh_bastion_pubkey_name
-  associate_public_ip_address = true
-  security_groups             = [aws_security_group.private-subnet.id]
+  associate_public_ip_address = false
+  vpc_security_group_ids      = [aws_security_group.private-subnet.id]
   subnet_id                   = aws_subnet.private-subnet[1].id
+  iam_instance_profile        = aws_iam_instance_profile.describe_ec2_profile.name
+  metadata_options {
+    http_endpoint = "enabled"
+    http_tokens   = "required"
+  }
   tags = {
-    Name        = "Private Subnet 2 Instance"
-    Environment = "dev"
-    Task        = "task-2"
+    Name = "K3S-worker"
   }
 }

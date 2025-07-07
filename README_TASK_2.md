@@ -192,10 +192,12 @@ Name        = "<descriptive-name>"
 ### Infrastructure Testing
 ```bash
 # SSH to bastion host
-ssh -i your-key.pem ubuntu@<bastion-public-ip>
+ssh-add your-key.pem
+# Agent-forwarding to use the same .pem key 
+ssh -A ubuntu@<bastion-public-ip>
 
 # From bastion, access private subnet instance
-ssh -i your-key.pem ubuntu@<private-instance-ip>
+ssh ubuntu@<private-instance-ip>
 
 # Test internet connectivity from private subnet
 curl -I https://google.com
