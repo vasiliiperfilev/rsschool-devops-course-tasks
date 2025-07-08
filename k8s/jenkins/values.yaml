@@ -516,7 +516,16 @@ controller:
     configUrls: []
     # - https://acme.org/jenkins.yaml
     # -- List of Jenkins Config as Code scripts
-    configScripts: {}
+    configScripts: 
+      hello-world-job: |
+        jobs:
+          - script: >
+              freeStyleJob('hello-world') {
+                  displayName('Hello World Job')
+                  steps {
+                    shell('echo "Hello World!"')
+                  }
+                }
     #  welcome-message: |
     #    jenkins:
     #      systemMessage: Welcome to our CI\CD server. This Jenkins is configured and managed 'as code'.
@@ -1262,7 +1271,7 @@ persistence:
   # If undefined (the default) or set to null, no storageClassName spec is
   #   set, choosing the default provisioner (gp2 on AWS, standard on GKE, AWS & OpenStack)
   # -- Storage class for the PVC
-  storageClass:
+  storageClass: jenkins-pv
   # -- Annotations for the PVC
   annotations: {}
   # -- Labels for the PVC
