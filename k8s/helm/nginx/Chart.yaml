@@ -1,6 +1,6 @@
 apiVersion: v2
-name: flask_app
-description: A flask app for DevOps course
+name: nginx
+description: A nginx app for DevOps course
 
 type: application
 version: 0.1.0
