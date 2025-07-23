@@ -1,0 +1,32 @@
+# Production values for rs-school-devops
+replicaCount: 3
+
+image:
+  repository: ""  # Will be set by Jenkins pipeline
+  tag: ""         # Will be set by Jenkins pipeline
+  pullPolicy: Always
+
+service:
+  type: LoadBalancer  # Use LoadBalancer for production
+  port: 80
+  targetPort: 5000
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Flask app specific configuration
+app:
+  name: rs-school-devops
+  env: production
+
+# Auto-scaling configuration
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70 

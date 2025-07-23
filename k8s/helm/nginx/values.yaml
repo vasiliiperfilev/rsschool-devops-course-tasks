@@ -1,14 +1,15 @@
 replicaCount: 1
 
 image:
-  repository: nginx
-  tag: latest
+  repository: ""  # Will be set by Jenkins pipeline
+  tag: ""         # Will be set by Jenkins pipeline
   pullPolicy: IfNotPresent
 
 service:
   type: NodePort
-  port: 80
-  nodePort: 30082
+  port: 5000
+  targetPort: 5000
+  nodePort: 30500
 
 resources:
   requests:
@@ -17,3 +18,8 @@ resources:
   limits:
     cpu: 200m
     memory: 256Mi
+
+# Flask app specific configuration
+app:
+  name: rs-school-devops
+  env: production

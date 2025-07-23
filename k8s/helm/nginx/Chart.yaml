@@ -1,6 +1,6 @@
 apiVersion: v2
-name: nginx
-description: A nginx app for DevOps course
+name: rs-school-devops
+description: A Flask app for DevOps course
 
 type: application
 version: 0.1.0
