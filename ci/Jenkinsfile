@@ -148,4 +148,5 @@ print('Service is running on NodePort: ${NODE_PORT}')
             }
         }
     }
+  }
 }
