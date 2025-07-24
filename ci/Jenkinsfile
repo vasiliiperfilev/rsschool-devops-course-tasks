@@ -1,17 +1,18 @@
 pipeline {
-    agent {
-        docker {
-            image 'docker:24-dind'
-            args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent none
     
     environment {
         DOCKER_IMAGE_NAME = 'rs-school-devops'
     }
 
     stages {
-        stage('Setup') {
+        stage('Setup & Test') {
+            agent {
+                docker {
+                    image 'docker:24-dind'
+                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
             steps {
                 echo '--------------------------------'
                 echo 'Setting up....'
@@ -35,28 +36,18 @@ pipeline {
                     docker --version
                     docker info
                 '''
-            }
-        }
-        
-        stage('Checkout') {
-            steps {
+                
+                echo '--------------------------------'
+                echo 'Checking out code....'
                 checkout scm
-            }
-        }
-        
-        stage('Test') {
-            steps {
+                
                 echo '--------------------------------'
                 echo 'Testing....'
                 sh '''
                     .venv/bin/pip install -r app/requirements.txt
                     cd app && ../.venv/bin/python -m unittest discover
                 '''
-            }
-        }
-        
-        stage('Security Scan') {
-            steps {
+                
                 echo '--------------------------------'
                 echo 'Security Scanning....'
                 // Add security scanning tools here
@@ -65,8 +56,17 @@ pipeline {
         }
         
         stage('Build Docker Image') {
+            agent {
+                docker {
+                    image 'docker:24-dind'
+                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
             steps {
                 echo '--------------------------------'
+                echo 'Checking out code for build....'
+                checkout scm
+                
                 echo 'Building Docker Image....'
                 script {
                     def gitCommitShort = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
@@ -74,9 +74,10 @@ pipeline {
                     
                     echo "Building with version: ${gitCommitShort}"
                     
-                    // Build Docker image
-                    def dockerImage = docker.build("${env.DOCKER_IMAGE_NAME}:${gitCommitShort}", "./app")
-                    dockerImage.tag("latest")
+                    sh """
+                        docker build -t ${env.DOCKER_IMAGE_NAME}:${gitCommitShort} ./app
+                        docker tag ${env.DOCKER_IMAGE_NAME}:${gitCommitShort} ${env.DOCKER_IMAGE_NAME}:latest
+                    """
                     
                     // Store image for later use
                     env.DOCKER_IMAGE = "${env.DOCKER_IMAGE_NAME}:${gitCommitShort}"
@@ -92,16 +93,34 @@ pipeline {
                     branch 'task-6'
                 }
             }
+            agent {
+                docker {
+                    image 'docker:24-dind'
+                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
             steps {
                 echo '--------------------------------'
                 echo 'Pushing Docker Image to Docker Hub....'
-                script {
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
-                        def dockerImage = docker.image("${env.DOCKER_IMAGE_NAME}:${env.GIT_COMMIT_SHORT}")
-                        
-                        // Tag and push with commit hash
-                        dockerImage.push("${env.GIT_COMMIT_SHORT}")
-                        dockerImage.push("latest")
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
+                                                 passwordVariable: 'DOCKER_PASSWORD', 
+                                                 usernameVariable: 'DOCKER_USERNAME')]) {
+                    script {
+                        sh '''
+                            # Login to Docker Hub
+                            echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+                            
+                            # Tag and push with commit hash
+                            docker tag ${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT} ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT}
+                            docker tag ${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT} ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:latest
+                            
+                            # Push images
+                            docker push ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT}
+                            docker push ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:latest
+                            
+                            # Logout
+                            docker logout
+                        '''
                     }
                 }
             }
@@ -115,8 +134,29 @@ pipeline {
                     branch 'task-6'
                 }
             }
+            agent {
+                docker {
+                    image 'docker:24-dind'
+                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
             steps {
                 echo '--------------------------------'
+                echo 'Checking out code for deployment....'
+                checkout scm
+                
+                echo 'Installing kubectl and helm....'
+                sh '''
+                    # Install kubectl
+                    apk add --no-cache curl
+                    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    mv kubectl /usr/local/bin/
+                    
+                    # Install Helm
+                    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+                '''
+                
                 echo 'Deploying with Helm....'
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
                                                  passwordVariable: 'DOCKER_PASSWORD', 
@@ -150,10 +190,22 @@ pipeline {
                     branch 'task-6'
                 }
             }
+            agent {
+                docker {
+                    image 'docker:24-dind'
+                    args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
             steps {
                 echo '--------------------------------'
                 echo 'Verifying Kubernetes Deployment....'
                 sh '''
+                    # Install kubectl and python
+                    apk add --no-cache curl python3 py3-pip
+                    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    mv kubectl /usr/local/bin/
+                    
                     # Wait for deployment to be ready
                     kubectl wait --for=condition=available --timeout=300s deployment/rs-school-devops
                     
@@ -164,8 +216,8 @@ pipeline {
                     kubectl get pods -l app=rs-school-devops
                     
                     # Test the service (basic verification)
-                    .venv/bin/pip install requests
-                    .venv/bin/python3 -c "
+                    python3 -m pip install requests
+                    python3 -c "
 import time
 print('Deployment verification complete!')
 print('Application has been successfully deployed to Kubernetes')
@@ -188,10 +240,6 @@ except Exception as e:
     post {
         always {
             echo 'Pipeline completed!'
-            // Clean up docker images to save space
-            sh '''
-                docker system prune -f || true
-            ''' 
         }
         success {
             echo 'Pipeline succeeded!'
