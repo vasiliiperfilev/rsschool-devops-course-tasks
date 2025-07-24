@@ -1,0 +1,7 @@
+# Jenkins credentials - never commit these!
+jenkins.env
+!jenkins.env.example
+
+# Any generated secrets or credential files
+*secret*
+*credential* 

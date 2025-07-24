@@ -80,17 +80,17 @@ controller:
     password:
 
     # -- The key in the existing admin secret containing the username
-    userKey: jenkins-admin-user
+    userKey: chart-admin-username
     # -- The key in the existing admin secret containing the password
-    passwordKey: jenkins-admin-password
+    passwordKey: chart-admin-password
 
     # The default configuration uses this secret to configure an admin user
     # If you don't need that user or use a different security realm, then you can disable it
-    # -- Create secret for admin user
-    createSecret: true
+    # -- Create secret for admin user (set to false when using existingSecret)
+    createSecret: false
 
     # -- The name of an existing secret containing the admin credentials
-    existingSecret: ""
+    existingSecret: "jenkins-admin-secret"
   # -- Email address for the administrator of the Jenkins instance
   jenkinsAdminEmail:
 
@@ -152,9 +152,17 @@ controller:
   containerEnvFrom: []
 
   # -- Environment variables for Jenkins Container
-  containerEnv: []
-  #   - name: http_proxy
-  #     value: "http://192.168.64.1:3128"
+  containerEnv:
+    - name: ADMIN_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: jenkins-admin-secret
+          key: chart-admin-username
+    - name: ADMIN_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: jenkins-admin-secret
+          key: chart-admin-password
 
   # Set min/max heap here if needed with "-Xms512m -Xmx512m"
   # -- Append to `JAVA_OPTS` env var
@@ -410,6 +418,7 @@ controller:
     - git:5.7.0
     - configuration-as-code:1971.vf9280461ea_89
     - job-dsl:1.91
+    - role-strategy:785.v8d262df0f607
   # If set to false, Jenkins will download the minimum required version of all dependencies.
   # -- Download the minimum required version or latest version of all dependencies
   installLatestPlugins: true
@@ -545,15 +554,38 @@ controller:
         allowsSignup: false
         enableCaptcha: false
         users:
-        - id: "${chart-admin-username}"
+        - id: "${ADMIN_USERNAME}"
           name: "Jenkins Admin"
-          password: "${chart-admin-password}"
+          password: "${ADMIN_PASSWORD}"
 
     # Ignored if authorizationStrategy is defined in controller.JCasC.configScripts
     # -- Jenkins Config as Code Authorization Strategy-section
     authorizationStrategy: |-
-      loggedInUsersCanDoAnything:
-        allowAnonymousRead: false
+      roleBased:
+        roles:
+          global:
+            - name: "admin"
+              description: "Jenkins administrators"
+              permissions:
+              - "Overall/Administer"
+              entries:
+                - user: "admin"
+            - name: "readonly"
+              description: "Read-only users"
+              permissions:
+                - "Overall/Read"
+                - "Job/Read"
+              entries:
+                - group: "authenticated"
+            - name: "developer"
+              description: "Developers"
+              permissions:
+                - "Job/Build"
+                - "Job/Configure"
+                - "Job/Read"
+              entries: 
+                - user: "developer"
+
 
     # -- Annotations for the JCasC ConfigMap
     configMapAnnotations: {}
@@ -1331,7 +1363,7 @@ rbac:
   # -- Whether RBAC resources are created
   create: true
   # -- Whether the Jenkins service account should be able to read Kubernetes secrets
-  readSecrets: false
+  readSecrets: true
   # -- Whether the Jenkins service account should be able to use the OpenShift "nonroot" Security Context Constraints
   useOpenShiftNonRootSCC: false
 
