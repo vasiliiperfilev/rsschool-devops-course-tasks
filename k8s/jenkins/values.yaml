@@ -419,6 +419,8 @@ controller:
     - configuration-as-code:1971.vf9280461ea_89
     - job-dsl:1.91
     - role-strategy:785.v8d262df0f607
+    - docker-workflow:457.v0f62a_94f11a_3
+    - docker-pipeline:621.va_73f881d9232
   # If set to false, Jenkins will download the minimum required version of all dependencies.
   # -- Download the minimum required version or latest version of all dependencies
   installLatestPlugins: true

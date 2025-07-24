@@ -1,5 +1,10 @@
 pipeline {
-    agent any
+    agent {
+        docker {
+            image 'docker:24-dind'
+            args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
+        }
+    }
     
     environment {
         DOCKER_IMAGE_NAME = 'rs-school-devops'
@@ -11,34 +16,24 @@ pipeline {
                 echo '--------------------------------'
                 echo 'Setting up....'
                 sh '''
-                    # Check if docker is available
-                    docker --version
-                    
-                    # Install python3 and pip if not available (adjust for your system)
-                    if ! command -v python3 &> /dev/null; then
-                        echo "Python3 not found, please ensure it's installed"
-                        exit 1
-                    fi
-                    
-                    # Create virtual environment
-                    python3 -m venv .venv || python3 -m pip install --user virtualenv && python3 -m virtualenv .venv
+                    # Install required packages for Alpine Linux (docker:dind is Alpine-based)
+                    apk add --no-cache python3 py3-pip python3-dev curl bash git
+                    python3 -m venv .venv
                     .venv/bin/pip install --upgrade pip
                     
-                    # Install or update Helm
-                    if ! command -v helm &> /dev/null; then
-                        echo "Installing Helm..."
-                        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-                    fi
+                    # Install Helm
+                    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
                     helm version
                     
-                    # Install or update kubectl
-                    if ! command -v kubectl &> /dev/null; then
-                        echo "Installing kubectl..."
-                        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-                        chmod +x kubectl
-                        sudo mv kubectl /usr/local/bin/ || mv kubectl /usr/local/bin/
-                    fi
+                    # Install kubectl
+                    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    mv kubectl /usr/local/bin/
                     kubectl version --client
+                    
+                    # Verify Docker is working
+                    docker --version
+                    docker info
                 '''
             }
         }
@@ -73,15 +68,19 @@ pipeline {
             steps {
                 echo '--------------------------------'
                 echo 'Building Docker Image....'
-                sh '''
-                    # Get git commit hash for versioning
-                    GIT_COMMIT_SHORT=$(git rev-parse --short HEAD)
-                    echo "Building with version: ${GIT_COMMIT_SHORT}"
+                script {
+                    def gitCommitShort = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.GIT_COMMIT_SHORT = gitCommitShort
                     
-                    # Build Docker image
-                    docker build -t ${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT} ./app
-                    docker tag ${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT} ${DOCKER_IMAGE_NAME}:latest
-                '''
+                    echo "Building with version: ${gitCommitShort}"
+                    
+                    // Build Docker image
+                    def dockerImage = docker.build("${env.DOCKER_IMAGE_NAME}:${gitCommitShort}", "./app")
+                    dockerImage.tag("latest")
+                    
+                    // Store image for later use
+                    env.DOCKER_IMAGE = "${env.DOCKER_IMAGE_NAME}:${gitCommitShort}"
+                }
             }
         }
         
@@ -96,23 +95,14 @@ pipeline {
             steps {
                 echo '--------------------------------'
                 echo 'Pushing Docker Image to Docker Hub....'
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', 
-                                                 passwordVariable: 'DOCKER_PASSWORD', 
-                                                 usernameVariable: 'DOCKER_USERNAME')]) {
-                    sh '''
-                        # Get git commit hash for versioning
-                        GIT_COMMIT_SHORT=$(git rev-parse --short HEAD)
+                script {
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub-credentials') {
+                        def dockerImage = docker.image("${env.DOCKER_IMAGE_NAME}:${env.GIT_COMMIT_SHORT}")
                         
-                        # Tag with Docker Hub repository name
-                        docker tag ${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT} ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT}
-                        docker tag ${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT} ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:latest
-                        
-                        # Login and push to Docker Hub
-                        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
-                        docker push ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT}
-                        docker push ${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:latest
-                        docker logout
-                    '''
+                        // Tag and push with commit hash
+                        dockerImage.push("${env.GIT_COMMIT_SHORT}")
+                        dockerImage.push("latest")
+                    }
                 }
             }
         }
@@ -132,7 +122,6 @@ pipeline {
                                                  passwordVariable: 'DOCKER_PASSWORD', 
                                                  usernameVariable: 'DOCKER_USERNAME')]) {
                     sh '''
-                        GIT_COMMIT_SHORT=$(git rev-parse --short HEAD)
                         DOCKER_IMAGE="${DOCKER_USERNAME}/${DOCKER_IMAGE_NAME}:${GIT_COMMIT_SHORT}"
                         
                         echo "Deploying ${DOCKER_IMAGE} to Kubernetes using Helm..."
@@ -176,7 +165,7 @@ pipeline {
                     
                     # Test the service (basic verification)
                     .venv/bin/pip install requests
-                    .venv/bin/python -c "
+                    .venv/bin/python3 -c "
 import time
 print('Deployment verification complete!')
 print('Application has been successfully deployed to Kubernetes')
